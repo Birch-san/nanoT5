@@ -1,0 +1,19 @@
+{
+  "configurations": [
+    {
+      "name": "Python: Train",
+      "type": "python",
+      "request": "launch",
+      "module": "nanoT5.main",
+      "justMyCode": false,
+      "args": [
+        "--config-name=small",
+        "optim.name=adamwscale",
+        "optim.lr_scheduler=cosine",
+      ],
+      "env": {
+        "LD_PRELOAD": "/usr/lib/python3.11/lib-dynload/_bz2.cpython-311-x86_64-linux-gnu.so /usr/lib/python3.11/lib-dynload/_lzma.cpython-311-x86_64-linux-gnu.so"
+      }
+    }
+  ]
+}

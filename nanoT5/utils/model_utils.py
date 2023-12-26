@@ -2,6 +2,7 @@ import torch
 import datasets
 from torch.utils.data import DataLoader
 from omegaconf import open_dict
+from datasets import DatasetDict, Dataset
 from datasets.iterable_dataset import IterableDataset
 from transformers import (
     AutoTokenizer,
@@ -72,24 +73,29 @@ def get_tokenizer(args):
 
 def load_dataset_splits(args):
     if args.mode == 'pt':
-        dataset = datasets.load_dataset(
-            'c4',
-            'en',
-            streaming=True,
+        dataset: DatasetDict = datasets.load_dataset(
+            # 'c4',
+            # 'en',
+            # streaming=True,
+            'tatsu-lab/alpaca',
+            streaming=False,
         )
 
         dataset = dataset.remove_columns(
-            ['timestamp', 'url']
+            # ['timestamp', 'url']
+            ['instruction', 'input', 'output']
         )
 
-        dataset_splits = {
-            'train': dataset['train'],
-            'test': dataset['validation'],
-        }
+        # dataset_splits = {
+        #     'train': dataset['train'],
+        #     'test': dataset['validation'],
+        # }
 
-        assert (
-            dataset['train'].n_shards == 1024
-        ), "We want to have many shards for efficient processing with num_workes in PyTorch dataloader"
+        dataset_splits: DatasetDict = dataset['train'].train_test_split(test_size=0.1, seed=42)
+
+        # assert (
+        #     dataset['train'].n_shards == 1024
+        # ), "We want to have many shards for efficient processing with num_workes in PyTorch dataloader"
     elif args.mode == 'ft':
         dataset_splits = datasets.load_dataset(
             args.data.exec_file_path,
@@ -133,7 +139,9 @@ def process_dataset(dataset_splits, args, tokenizer):
                 remove_columns=['text'],
             )
 
-            dataset_split = dataset_split.shuffle(buffer_size=10_000, seed=args.seed)
+            is_iterable = isinstance(dataset_split, IterableDataset)
+            iterable_kwargs = { 'buffer_size':10_000 } if is_iterable else {}
+            dataset_split = dataset_split.shuffle(**iterable_kwargs, seed=args.seed)
             final_datasets[split] = dataset_split
     elif args.mode == 'ft':
         final_datasets = dataset_splits
@@ -189,10 +197,12 @@ def get_dataloaders(tokenizer, config, args):
 
         shuffle = (split == 'train') and not is_iterable
 
-        if args.mode == 'ft' and split == 'train':
-            assert shuffle is True
-        else:
-            assert shuffle is False
+        # we have modified dataloader to use a non-streaming dataset for pretraining.
+        # torch DataLoader should be able to shuffle this just fine
+        # if args.mode == 'ft' and split == 'train':
+        #     assert shuffle is True
+        # else:
+        #     assert shuffle is False
 
         dataloaders[split] = DataLoader(
             dataset[split],
